@@ -4,6 +4,8 @@
 
 ## Fixed
 
+- Open browser in background thread to avoid failures on Linux.
+
 ## Changed
 
 # 0.0-59 (2019-09-12 / 9159233)

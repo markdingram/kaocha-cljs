@@ -1,6 +1,7 @@
 (ns kaocha.cljs.queue-eval-loop
   (:refer-clojure :exclude [with-bindings resolve-fn prepl io-prepl])
-  (:require [cljs.env :as env]
+  (:require [clojure.java.browse :as browse]
+            [cljs.env :as env]
             [cljs.closure :as closure]
             [cljs.analyzer :as ana]
             [cljs.analyzer.api :as ana-api]
@@ -37,10 +38,18 @@
 (defn repl-quit? [v]
   (#{":repl/quit" ":cljs/quit"} v))
 
+(defn open-browser [{:keys [host port] :or {host "localhost" port 9000}}]
+  (let [base-url (str "http://" host ":" port)]
+    ; on linux xdg-open blocks if the browser isn't already running so open in a background thread
+    ; (see more background/discussion here: https://github.com/electron/electron/pull/5072)
+    (future
+      (browse/browse-url (str base-url "?rel=" (System/currentTimeMillis))))))
+
 (defn start!
   "Like a prepl, but takes a queue which delivers forms, rather than a reader."
   [repl-env {:keys [special-fns] :as opts} in out-fn & {:keys [stdin]}]
-  (let [repl-opts      (repl/repl-options repl-env)
+  (let [repl-env (assoc repl-env :launch-browser false)
+        repl-opts      (repl/repl-options repl-env)
         opts           (merge
                         {:def-emits-var true}
                         (closure/add-implicit-options
@@ -60,6 +69,8 @@
                      *err*           (PrintWriter-on #(out-fn {:tag :err :val %1}) nil)
                      repl/*repl-env* repl-env]
              (let [opts (merge opts (:merge-opts (repl/setup repl-env opts)))]
+               (when (:browser-repl repl-opts)
+                 (open-browser opts))
                (binding [repl/*repl-opts* opts]
                  (repl/evaluate-form repl-env env "<cljs repl>"
                                      (with-meta `(~'ns ~'cljs.user) {:line 1 :column 1}) identity opts)
